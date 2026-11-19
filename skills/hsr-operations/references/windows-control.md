@@ -8,7 +8,7 @@
 
 每条命令等新增 ACK，回执未知停余下指令，不能覆盖槽或重放整批。ACK 不能证明游戏动作或奖励成功。用户接管、失焦、窗口几何改变后丢弃旧计划，新画面再规划。
 
-AHK 新脚本先普通权限 `/Validate /ErrorStdOut=UTF-8`，通过后才按正常授权现场验收。错误弹窗不点 Continue。原项目曾发生 status.log Error (32) 后游戏动作已生效却缺 ACK；短读日志及时关句柄，优先用 sender 的内存时间戳。
+AHK 新脚本先普通权限 `/Validate /ErrorStdOut=UTF-8`，通过后才按正常授权现场验收。错误弹窗不点 Continue。控制桥遇状态文件短暂共享冲突会重试写入，持续冲突会退出。短读日志及时关句柄。ACK 缺失时重新取图核实实际位移，处理步骤见 `docs/BRIDGE.md`。
 
 ## 胶囊采样辅助与 stdout Error (6)
 

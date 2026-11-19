@@ -16,8 +16,22 @@ OnExit ReleaseAll
 ^!F12::ExitApp()
 if !A_IsAdmin
  ExitApp(12)
-FileAppend 'READY ' A_Now '`n', 'status.log'
+WriteStatus 'READY ' A_Now '`n'
 SetTimer Poll, 50
+WriteStatus(line) {
+ for delay in [0, 15, 30, 60] {
+  if delay
+   Sleep delay
+  try {
+   FileAppend line, 'status.log'
+   return
+  } catch OSError as err {
+   if err.Number != 32 && err.Number != 33
+    ExitApp(err.Number)
+  }
+ }
+ ExitApp(32)
+}
 ReleaseAll(*) {
  global held
  for k in held
@@ -46,14 +60,14 @@ Poll() {
   return
  }
  if Trim(cmd) = 'ping' {
-  FileAppend 'PONG ' A_Now '`n', 'status.log'
+  WriteStatus 'PONG ' A_Now '`n'
   return
  }
  p := StrSplit(Trim(cmd, " `t`r`n"), '|')
  if p[1] = 'stop'
   ExitApp()
  if !WinActive('ahk_exe StarRail.exe') {
-  FileAppend 'FOCUS_REQUIRED`n', 'status.log'
+  WriteStatus 'FOCUS_REQUIRED`n'
   return
  }
  hwnd := WinActive('A')
@@ -89,5 +103,5 @@ Poll() {
   Click x,y
  } else
   return
- FileAppend 'ACK ' cmd '`n', 'status.log'
+ WriteStatus 'ACK ' cmd '`n'
 }
