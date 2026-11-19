@@ -1,0 +1,48 @@
+name: Reviewed PR merge
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_run:
+    workflows: [Offline verification]
+    types: [completed]
+  status: {}
+  workflow_dispatch: {}
+
+concurrency:
+  group: reviewed-pr-merge
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  checks: read
+  statuses: read
+  actions: write
+
+jobs:
+  merge:
+    if: >-
+      github.repository == 'godriccao/hsr-operations' &&
+      (github.event_name != 'issue_comment' ||
+       (github.event.issue.pull_request && github.event.sender.id == 199175422))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Always execute the trusted main version, never code from the incoming PR.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check trusted review, current head and CI before merging
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/pr_merge_gate.py
