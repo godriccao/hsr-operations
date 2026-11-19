@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+runtime/
+*.local.ini
+*.local.json
+*.log
+result-*.txt
+command*.txt
+claimed-command.txt
+expired-command.txt

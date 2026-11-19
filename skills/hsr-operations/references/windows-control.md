@@ -1,0 +1,17 @@
+# Windows 控制
+
+按本机登记的 REPO_ROOT 读 `docs/INSTALL.md` 与 `docs/BRIDGE.md`。公开包只使用后期单槽 `keys|...` / `click|...` 协议；早期 Sequence sender 不属于本包依赖。
+
+原生 CUA 窗口取图后正常查 ControlStatus，仅在 ready、游戏前台、用户交回控制和当前宿主允许此输入通道时执行。user 时立即让出，ai 时等待正常就绪，超时停止。桥无法代查宿主归属，不可脱离操作者守卫无人运行。只允许 CUA 的宿主遵守该限制。
+
+坐标区分 screenshot、screen 与 client。窗口移动、DPI 或分辨率改变后重新校准。帮派迷钟的历史比例只适用于该次记录，不能当全局常数。
+
+每条命令等新增 ACK，回执未知停余下指令，不能覆盖槽或重放整批。ACK 不能证明游戏动作或奖励成功。用户接管、失焦、窗口几何改变后丢弃旧计划，新画面再规划。
+
+AHK 新脚本先普通权限 `/Validate /ErrorStdOut=UTF-8`，通过后才按正常授权现场验收。错误弹窗不点 Continue。原项目曾发生 status.log Error (32) 后游戏动作已生效却缺 ACK；短读日志及时关句柄，优先用 sender 的内存时间戳。
+
+## 胶囊采样辅助与 stdout Error (6)
+
+回溯辅助 `tools/rewind-cue.ahk` 接口、配置、预算与退出码见 BRIDGE。先实见针盘，在当前客户区校准独立胶囊中心，初始必须非青。总预算 12 秒，失焦或窗口几何变化即停，finally/退出回调释放 Space。edges 和退出码不能替代挑战成功及奖励画面。历史 stdout 错误修版改为先释放按键再写独立结果文件；公开版写本地运行目录。
+
+原生 CUA 多帧和 Windows MCP 截图有不同控制开销，计时遵守 `docs/PERFORMANCE.md`，从第一张可操作帧至实际首派，菜单和走位分开。

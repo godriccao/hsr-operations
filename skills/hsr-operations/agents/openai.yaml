@@ -1,0 +1,4 @@
+interface:
+  display_name: "崩坏：星穹铁道操作"
+  short_description: "完成每日和每周任务、跑图寻宝、解探索谜题并核对实收奖励"
+  default_prompt: "使用 $hsr-operations 完成当前崩铁任务，按游戏界面核实奖励和当前进度。"
