@@ -26,6 +26,8 @@ python tools/benchmark.py examples/timing.synthetic.jsonl
 
 流程与已跑通范围见 [操作方法](docs/OPERATIONS.md)、[实测证据](docs/EVIDENCE.md) 和 [地点路段](docs/BATCHES.md)。技能入口为 [SKILL.md](skills/hsr-operations/SKILL.md)。回执证明输入链路，落点、机关成功和奖励分别由游戏画面确认。
 
+本仓库是技能与公开工具的维护源。后续修改、离线验收、异步合并和推送按 [维护说明](CONTRIBUTING.md) 执行。
+
 ## 权限和许可证
 
 用户接管优先，一个操作者发键鼠；使用当前宿主允许的正常输入与授权入口。宿主只允许 CUA 时，不能调用 AHK 或 shell 代替受限制输入。工具无注入、内存读取或提权绕过功能。见 [控制协议](docs/BRIDGE.md)。
