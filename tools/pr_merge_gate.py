@@ -149,8 +149,13 @@ def evaluate(api, number):
     if not any(c['name'] == 'verify' and c['app']['slug'] == 'github-actions'
                and c['conclusion'] == 'success' for c in checks):
         return None, 'missing verify check'
+    # This gate also creates a check. It cannot wait for itself, and a superseded
+    # event invocation may be cancelled by the concurrency group. Offline verify
+    # remains mandatory; all other independent checks still have to be healthy.
+    independent = [c for c in checks if not (
+        c['name'] == 'merge' and c['app']['slug'] == 'github-actions')]
     if any(c['status'] != 'completed' or c['conclusion'] not in ('success', 'neutral', 'skipped')
-           for c in checks):
+           for c in independent):
         return None, 'pending or failing check'
     statuses = api.request(f'/commits/{head}/status')
     if statuses['statuses'] and statuses['state'] != 'success':

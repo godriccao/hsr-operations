@@ -138,6 +138,32 @@ class MergeContract(unittest.TestCase):
         reaction['created_at'] = '2025-12-31T23:59:59Z'
         self.assertFalse(gate.review_verdict([record], HEAD, [reaction])[0])
 
+    def test_gate_does_not_wait_for_its_own_pending_or_cancelled_check(self):
+        for status, conclusion in [('in_progress', None), ('completed', 'cancelled')]:
+            api = FakeAPI()
+            pages = api.pages
+            def with_gate_check(path, key=None):
+                values = pages(path, key)
+                if '/check-runs' in path:
+                    return values + [{'name': 'merge', 'app': {'slug': 'github-actions'},
+                                      'status': status, 'conclusion': conclusion}]
+                return values
+            api.pages = with_gate_check
+            self.assertTrue(gate.merge_one(api, 1)['merged'])
+
+    def test_an_independent_failed_check_still_blocks(self):
+        api = FakeAPI()
+        pages = api.pages
+        def with_failed_check(path, key=None):
+            values = pages(path, key)
+            if '/check-runs' in path:
+                return values + [{'name': 'security', 'app': {'slug': 'github-actions'},
+                                  'status': 'completed', 'conclusion': 'failure'}]
+            return values
+        api.pages = with_failed_check
+        self.assertFalse(gate.merge_one(api, 1)['merged'])
+        self.assertEqual(api.writes, [])
+
 
 if __name__ == '__main__':
     unittest.main()
