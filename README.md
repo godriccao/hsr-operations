@@ -26,6 +26,8 @@ python tools/benchmark.py examples/timing.synthetic.jsonl
 
 流程与已跑通范围见 [操作方法](docs/OPERATIONS.md)、[实测证据](docs/EVIDENCE.md) 和 [地点路段](docs/BATCHES.md)。技能入口为 [SKILL.md](skills/hsr-operations/SKILL.md)。回执证明输入链路，落点、机关成功和奖励分别由游戏画面确认。
 
+[成就目录工具](docs/ACHIEVEMENT_CATALOG.md)可在本地获取正式服全量目录，并逐版本按 ID 报告变化。
+
 本仓库是技能与公开工具的维护源。后续修改、离线验收、异步合并和推送按 [维护说明](CONTRIBUTING.md) 执行。
 
 PR 审查由创建和提交更新事件触发，审查与 CI 通过后自动合并；没有新 PR 或新提交时不运行定时模型检查。
