@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SUFFIXES = {'.md', '.py', '.ahk', '.ini', '.txt', '.jsonl', '.yaml', '.yml'}
+SUFFIXES = {'.md', '.py', '.ahk', '.ini', '.txt', '.jsonl', '.yaml', '.yml', '.mjs'}
 FORBIDDEN = [r'(?i)(?<![a-z0-9])[a-z]:[/\\]', r'(?i)/' + r'home/[^/\s]+', r'(?i)Users[/\\][^/\\\s]+',
              r'gh[pousr]_[A-Za-z0-9]{20,}', r'github_pat_[A-Za-z0-9_]{20,}',
              r'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----',

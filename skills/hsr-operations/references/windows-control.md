@@ -16,9 +16,13 @@ AHK 新脚本先普通权限 `/Validate /ErrorStdOut=UTF-8`，通过后才按正
 
 原生 CUA 多帧和 Windows MCP 截图有不同控制开销，计时遵守 `docs/PERFORMANCE.md`，从第一张可操作帧至实际首派，菜单和走位分开。
 
-## 锁屏期间只读画面
+## 连续观察与锁屏只读
+
+普通走位需要连续看地标时，可用 OBS 窗口采集。单张核图、地图小字、奖励数字和精确点击优先用原生 CUA。OBS 画布有单独的缩放，点击前重新核客户区坐标。
 
 需要在锁屏期间观察时，先在解锁状态为 OBS 新建场景集合，添加「窗口采集」，选中 `StarRail.exe`，将采集方法设为 Windows Graphics Capture（WGC）。只采游戏画面，关闭麦克风、桌面音频和应用音频。需要本地程序读取画面时，启动 OBS 虚拟摄像机，以 FFmpeg 的 `-f dshow -i "video=OBS Virtual Camera"` 读取，完成后关闭虚拟摄像机。[OBS 窗口采集](https://obsproject.com/kb/window-capture-sources)
+
+在能运行 Node.js 并从 PATH 启动 FFmpeg 的本地宿主，可从完整仓库导入 `tools/obs_frames.mjs`。调用 `openObsFrames()` 一次保留 reader。每次 `await reader.nextFrame()` 取得新的 960×540 JPEG，用宿主图像接口读 `frame.bytes`。取帧在内存中完成。首图核游戏地标，连续帧用场景或待机动作核更新。超时或画面无法核实时回到 CUA。观察完成调用 `reader.close()`，再停 OBS 虚拟摄像机。该 reader 只取图，派发仍走正常控制检查。
 
 用 `WTSQuerySessionInformationW` 的 `WTSSessionInfoEx` 会话标志确认锁屏及解锁。在锁屏期间间隔抽取数帧，比较像素并观察角色待机动作，排除重复的最后一帧。锁屏期间停发游戏键鼠。解锁后重新取图，确认游戏前台及控制归属，再按正常流程派发。[Windows 会话状态](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w)
 

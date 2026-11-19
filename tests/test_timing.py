@@ -43,13 +43,38 @@ class TimingContract(unittest.TestCase):
             self.assertEqual(len(benchmark.summarize([row])['invalid']), 1)
 
     def test_original_parser_multiframe_and_receipts(self):
-        rows = list(codex_timing.samples(codex_timing.events(ROOT / 'examples/session.synthetic.jsonl', 16)))
+        rows = [row for row in codex_timing.samples(codex_timing.events(ROOT / 'examples/session.synthetic.jsonl', 16))
+                if row['capture_tool'] == 'CuaScreenshot']
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['observation_frames'], 2)
         self.assertEqual(rows[0]['first_frame_to_first_bridge_dispatch_ms'], 18000)
         self.assertEqual(rows[0]['frame_to_first_bridge_dispatch_ms'], 3000)
         self.assertEqual(rows[0]['bridge_dispatches'], 2)
         self.assertEqual(rows[0]['bridge_acknowledgements'], 2)
+
+    def test_obs_frame_and_prefixed_ack(self):
+        rows = [row for row in codex_timing.samples(codex_timing.events(ROOT / 'examples/session.synthetic.jsonl', 16))
+                if row['capture_tool'] == 'ObsScreenshot']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['screenshot_ms'], 43)
+        self.assertEqual(rows[0]['first_frame_to_first_bridge_dispatch_ms'], 857)
+        self.assertEqual(rows[0]['bridge_acknowledgements'], 1)
+
+    def test_only_independent_cua_capture_counts(self):
+        import tempfile
+        code = 'await window.getScreenshot(); nodeRepl.write(Date.now());'
+        calls = [(code, False), (code + ' await window.click(100, 100);', False), (code, True)]
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / 'session.jsonl'
+            rows = []
+            for script, is_error in calls:
+                rows.append({'payload': {'type': 'item_completed', 'started_at_ms': 10, 'completed_at_ms': 11,
+                                         'item': {'type': 'McpToolCall', 'server': 'cua_repl', 'tool': 'js',
+                                                  'status': 'completed', 'arguments': {'code': script},
+                                                  'result': {'isError': is_error}}}})
+            log.write_text('\n'.join(map(json.dumps, rows)), encoding='utf-8')
+            tools = [event[3] for event in codex_timing.events(log, 16)]
+        self.assertEqual(tools, ['CuaScreenshot', 'js', 'js'])
 
     def test_ack_old_wrong_command_not_counted(self):
         output = 'ack 1700000000000 keys|W|80\ndispatch 1700000000100 keys|M|80\nack 1700000000200 keys|W|80'

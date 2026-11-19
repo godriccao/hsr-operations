@@ -21,6 +21,10 @@
 
 原生 CUA 窗口截图后，正常 ControlStatus 仍可就绪，再由原桥输入，项目已有连续菜单与走位实测。不能把 Windows MCP 截图与 CUA 截图混到一个样本。版本升级后重新核源码和正常表现；保持控制归属与用户优先，不修改租约实现。
 
+## OBS 连续取图
+
+2026-11-19，OBS 33.0.0 经 WGC 和虚拟摄像机向本地 FFmpeg 供图，常驻 reader 输出 960×540 JPEG。龙骸古城 2F 实机测得首次取帧调用 567 毫秒，随后一次常驻取帧调用 43 毫秒。另一次常驻读取并返回 JPEG 为 62 毫秒，门徽和寻宝标记均可辨。这些是单次取帧样本。同一轮用首张 OBS 图成功走到预定栏杆，从宿主确认图到桥首派仍为 9.384 秒。比较 OBS 与 CUA 时，在同一环境、模型及可比路段分别统计取图和首派耗时。
+
 ## 可比计时协议
 
 同一 sender 单调时钟记录：第一张可操作帧返回、补图返回、控制就绪、动作准备好、命令调用启动、实际首派、各 ACK。公开 schema 以相对毫秒存储，避免账号和绝对时间；原始工具日志可本地用 codex_timing.py 分析。
@@ -41,8 +45,15 @@
 python tools/benchmark.py examples/timing.synthetic.jsonl
 python -m unittest discover -s tests -v
 python tools/codex_timing.py examples/session.synthetic.jsonl --capture CuaScreenshot --bridge-only
+python tools/codex_timing.py examples/session.synthetic.jsonl --capture ObsScreenshot --bridge-only
 ```
 
 合成样例专门测试首帧、多帧、分组、未知状态、重复命令和回执异常；其数值不是 16 段实机原始值。benchmark 遇不匹配 ACK 会把该段列为无效而不计入中位数。请在本地单独保存实际样本，按 schema 记录后复算。
 
-本地原始 Codex 日志可用 `python tools/codex_timing.py <本地日志> --since <带时区时间> --until <带时区时间> --capture CuaScreenshot --bridge-only`。该解析器只识别项目已知的独立 CUA 截图调用形态；其他宿主/新调用写法需适配，零样本不代表零延迟。它不判断画面是否可操作，也不自动分组。始终复核 `observation_frames`、`first_frame_to_first_bridge_dispatch_ms`、`bridge_dispatches`、`bridge_acknowledgements`。原始日志不可上传公开仓库。
+本地原始 Codex 日志可用 `python tools/codex_timing.py <本地日志> --since <带时区时间> --until <带时区时间> --capture CuaScreenshot --bridge-only`。OBS 同口径用 `--capture ObsScreenshot`。每批用同一来源取帧，以便比较。解析器只识别项目已知的独立 CUA 和 OBS 调用形态；其他宿主/新调用写法需适配，零样本不代表零延迟。它不判断画面是否可操作，也不自动分组。始终复核 `observation_frames`、`first_frame_to_first_bridge_dispatch_ms`、`bridge_dispatches`、`bridge_acknowledgements`。原始日志不可上传公开仓库。
+
+需从独立 OBS 取帧调用自动统计时，可在支持 `nodeRepl.emitImage` 的本地 REPL 先导入模块并在单独调用中建立 `reader`（`const reader = openObsFrames()`）和可重复赋值的 `frame`（`let frame`），再用下面的调用。日志按宿主工具完成时间计。
+
+```javascript
+frame=await reader.nextFrame(); nodeRepl.write(Date.now()); await nodeRepl.emitImage({bytes:frame.bytes,mimeType:"image/jpeg"});
+```

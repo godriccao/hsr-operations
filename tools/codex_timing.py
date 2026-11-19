@@ -9,11 +9,23 @@ from statistics import median
 
 
 CUA_CAPTURE_CALLS = {
-    "await app.getScreenshot();",
     "await app.getScreenshot(); var cuaFrame=Date.now();",
     "await app.getScreenshot(); cuaFrame=Date.now(); nodeRepl.write(cuaFrame);",
 }
-BRIDGE_LINE = re.compile(r"(dispatch|ack) (\d{13}) ((?:keys|click)\|[^|]+\|\d+)")
+CUA_CAPTURE_CALL = re.compile(
+    r"await [A-Za-z_$][\w$]*\.getScreenshot\(\)"
+    r"(?:;\s*nodeRepl\.write\(Date\.now\(\)\))?;?"
+)
+OBS_CAPTURE_CALL = re.compile(
+    r'(?:const \{openObsFrames\}=await import\("[^"\r\n]+/tools/obs_frames\.mjs"\); '
+    r'const reader=await openObsFrames\(\); let )?'
+    r'frame=await reader\.nextFrame\(\); nodeRepl\.write\(Date\.now\(\)\); '
+    r'await nodeRepl\.emitImage\(\{bytes:frame\.bytes,mimeType:"image/jpeg"\}\);'
+)
+CAPTURE_TOOLS = ("Screenshot", "CuaScreenshot", "ObsScreenshot")
+BRIDGE_LINE = re.compile(
+    r"(dispatch|ack) (\d{13}) (?:ACK )?((?:keys|click)\|[^|]+\|\d+)"
+)
 
 
 def bridge_receipts(output, start, end):
@@ -64,13 +76,18 @@ def events(path, tail_mib):
                 continue
             item = payload.get("item", {})
             tool = item.get("tool")
-            if item.get("server") == "cua_repl" and tool == "js":
+            server = item.get("server")
+            if tool == "js" and server in {"cua_repl", "node_repl"}:
                 args = item.get("arguments") or {}
                 result = item.get("result") or {}
                 code = args.get("code") if isinstance(args, dict) else None
-                if (isinstance(code, str) and code.strip() in CUA_CAPTURE_CALLS
-                        and item.get("status") == "completed" and not result.get("isError")):
-                    tool = "CuaScreenshot"
+                if (isinstance(code, str) and item.get("status") == "completed"
+                        and not result.get("isError")):
+                    if server == "cua_repl" and (code.strip() in CUA_CAPTURE_CALLS
+                                                 or CUA_CAPTURE_CALL.fullmatch(code.strip())):
+                        tool = "CuaScreenshot"
+                    elif server == "node_repl" and OBS_CAPTURE_CALL.fullmatch(code.strip()):
+                        tool = "ObsScreenshot"
             state = None
             if tool == "ControlStatus":
                 result = item.get("result") or {}
@@ -89,7 +106,7 @@ def samples(entries):
     reasoning = []
     checks = []
     for start, end, kind, tool, state, receipts in sorted(entries, key=lambda event: event[0]):
-        if kind == "McpToolCall" and tool in {"Screenshot", "CuaScreenshot"}:
+        if kind == "McpToolCall" and tool in CAPTURE_TOOLS:
             if frame is None:
                 first_frame_end = end
                 frame_count = 0
@@ -164,7 +181,7 @@ def main():
     parser.add_argument("--since", type=timestamp)
     parser.add_argument("--until", type=timestamp)
     parser.add_argument("--tail-mib", type=int, default=16)
-    parser.add_argument("--capture", choices=("Screenshot", "CuaScreenshot"))
+    parser.add_argument("--capture", choices=CAPTURE_TOOLS)
     parser.add_argument("--bridge-only", action="store_true", help="Keep samples with a logged bridge dispatch.")
     args = parser.parse_args()
     if args.tail_mib <= 0:
