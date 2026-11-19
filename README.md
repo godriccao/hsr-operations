@@ -28,6 +28,8 @@ python tools/benchmark.py examples/timing.synthetic.jsonl
 
 本仓库是技能与公开工具的维护源。后续修改、离线验收、异步合并和推送按 [维护说明](CONTRIBUTING.md) 执行。
 
+PR 审查由创建和提交更新事件触发，审查与 CI 通过后自动合并；没有新 PR 或新提交时不运行定时模型检查。
+
 ## 权限和许可证
 
 用户接管优先，一个操作者发键鼠；使用当前宿主允许的正常输入与授权入口。宿主只允许 CUA 时，不能调用 AHK 或 shell 代替受限制输入。工具无注入、内存读取或提权绕过功能。见 [控制协议](docs/BRIDGE.md)。
