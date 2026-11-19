@@ -32,6 +32,8 @@
 
 ### 全量目录与攻略来源
 
+从仓库根目录运行 `python tools/achievement_catalog.py`，在本地建立或更新正式服中文目录。`--dry-run` 可按 ID 先看新增、改动和移除；使用 `current.json` 与本账号已完成证据做差集。[目录工具与来源清单](../../../docs/ACHIEVEMENT_CATALOG.md)
+
 全量对表可用 BWIKI 成就索引核标题、分类、版本及奖励，用 Nanoka 同版本中文目录的 ID 和显示类型区分常显、仅藏描述与完成后才显示。目录口径、同名条目、别名、互斥分支分别记录。对照账号逐项已完名单做差集，保留已证未完和只有目录证据的候选。隐藏条目一起做差集，无需逐条在游戏内搜索。确要走某条路线时再核本次可达条件。账号与目录只有其中一方见到的条目保留原来源与证据。[BWIKI 成就筛选](https://wiki.biligame.com/sr/%E6%88%90%E5%B0%B1%E7%AD%9B%E9%80%89) · [Nanoka 版本清单](https://static.nanoka.cc/manifest.json) · [Nanoka 4.7 中文目录示例](https://static.nanoka.cc/hsr/4.7/zh/achievement/achievement.json)
 
 按题型选证据。游戏文本优先核原条件。战斗和特殊互动可查米游社、17173 可追溯的作者实景，地图定位可查 Sidus 的图，连续动作可对照 Wotpack 实录或 nyacchi 的分段实景。用本账号入口、楼层、地标、机关和反馈复核攻略适用性。核定触发条件、角色、剧情前置或限时后，以游戏弹条或账号状态验收。涉及不可逆互斥选项时先核已选分支。
