@@ -27,7 +27,7 @@ AHK 桥本身不能查询宿主的 ControlStatus。调用它的 agent/sender 负
 
 每批输出 `dispatch <epoch_ms> <command>` 和 `ack <epoch_ms> <command>` 可由 codex_timing.py 对齐。它只配顺序单槽日志；重复、交错、不完整或跨命令调用的日志须先调查，不能将匹配数等同游戏成功。
 
-`tools/bridge_sender.py` 提供 Windows 单槽 sender 库，默认没有现场 CLI。调用方必须传入实际 `control_status()` 和 `foreground_ok()` 回调，以及本次通道已获授权的状态。回调每次查询真实宿主，不缓存 ready；没有可靠回调时不运行。该库用独占 sender.lock、提交前日志偏移、逐条新增回执和超时停止保证调度顺序，返回相对派发与 ACK 时间。首次桥启动先等 READY，再由同一库发送 ping。
+`tools/bridge_sender.py` 提供 Windows 单槽 sender 库，默认没有现场 CLI。调用方必须传入实际 `control_status()` 和 `foreground_ok()` 回调，以及本次通道已获授权的状态。回调每次查询真实宿主，不缓存 ready；没有可靠回调时不运行。该库用独占 sender.lock、提交前日志偏移、逐条新增回执和超时停止保证调度顺序，返回相对派发与 ACK 时间。首次桥启动先等 READY，再由同一库发送 ping。读取 `status.log` 遇 Windows 共享或字节锁错误 32、33 时，在本次等待截止时间内从原偏移继续读，期间照常检查控制归属与前台。访问拒绝等其他读取错误立即返回。遇超时就停止该批，最新画面用于核实原命令有无执行。
 
 FOCUS_REQUIRED 表示该命令没有执行。ACK 缺失可能是日志写冲突，动作可能已经生效。任一失败均停止余下动作，不覆盖槽、不重放整批；核当前画面、按键和认领状态。遗留命令只有在确认已过期、内容和时间稳定后才由唯一操作者无覆盖归档。桥错误弹窗不点 Continue 重放。恢复后先新 PONG 和新画面，再计划。
 

@@ -3,15 +3,62 @@
 No live CLI and no default permission provider. Use only in a host that permits this
 input channel. This library does not implement or bypass the host's control lease.
 """
+import ctypes
 import os
 import re
 import time
 import uuid
+from ctypes import wintypes
 from pathlib import Path
 
 KEY = r'(?:[a-z0-9]|Space|Enter|Escape|Tab|Up|Down|Left|Right|LShift|LCtrl|F[1-9]|F1[0-2])'
 KEYS = re.compile(rf'keys\|{KEY}(?:\+{KEY})*\|\d+', re.I)
 CLICK = re.compile(r'click\|\d+,\d+\|\d+')
+
+
+if os.name == 'nt':
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel32.CreateFileW.argtypes = (
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+    )
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.SetFilePointerEx.argtypes = (
+        wintypes.HANDLE, ctypes.c_longlong, ctypes.POINTER(ctypes.c_longlong), wintypes.DWORD,
+    )
+    kernel32.SetFilePointerEx.restype = wintypes.BOOL
+    kernel32.ReadFile.argtypes = (
+        wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD),
+        ctypes.c_void_p,
+    )
+    kernel32.ReadFile.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+
+def _read_status_tail(log, offset):
+    # Python open() reports EACCES for both access denial and sharing conflicts.
+    # Win32 calls preserve the specific error from opening or reading the file.
+    generic_read = 0x80000000
+    share_read_write = 3
+    open_existing = 3
+    handle = kernel32.CreateFileW(str(log), generic_read, share_read_write, None, open_existing, 0, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        if not kernel32.SetFilePointerEx(handle, offset, None, 0):
+            raise ctypes.WinError(ctypes.get_last_error())
+        buffer = ctypes.create_string_buffer(8192)
+        size = wintypes.DWORD()
+        tail = bytearray()
+        while True:
+            if not kernel32.ReadFile(handle, buffer, len(buffer), ctypes.byref(size), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if not size.value:
+                return tail.decode('utf-8', errors='replace').replace('\r\n', '\n')
+            tail.extend(buffer[:size.value])
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authorized,
@@ -58,23 +105,30 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
                 break  # legacy protocol has no stop ACK
             deadline = clock() + timeout
             expected = 'PONG ' if command == 'ping' else 'ACK ' + command + '\n'
-            while True:
+            while clock() < deadline:
                 if control_status() != 'ready' or not foreground_ok():
                     raise PermissionError('control changed; stop and inspect pending / executed input')
-                if log.exists():
-                    with log.open('rb') as stream:
-                        stream.seek(offset)
-                        tail = stream.read().decode('utf-8', errors='replace').replace('\r\n', '\n')
-                    if 'FOCUS_REQUIRED\n' in tail:
-                        raise RuntimeError('focus required')
-                    pong = command == 'ping' and any(
-                        re.fullmatch(r'PONG \d{14}\n', line) for line in tail.splitlines(keepends=True))
-                    if pong or (command != 'ping' and tail.endswith(expected)):
-                        receipts.append({'type': 'ack', 't_ms': (clock()-origin)*1000, 'command': command})
-                        break
-                if clock() >= deadline:
-                    raise TimeoutError('ACK unknown; do not replay, inspect current game and slot')
-                sleep(0.05)
+                try:
+                    tail = _read_status_tail(log, offset)
+                except OSError as error:
+                    # The log may not exist yet. Sharing and range locks can clear
+                    # before this command's deadline. The original offset stays fixed.
+                    if getattr(error, 'winerror', None) not in (2, 32, 33):
+                        raise
+                    tail = ''
+                observed = clock()
+                if observed >= deadline:
+                    continue
+                if 'FOCUS_REQUIRED\n' in tail:
+                    raise RuntimeError('focus required')
+                pong = command == 'ping' and any(
+                    re.fullmatch(r'PONG \d{14}\n', line) for line in tail.splitlines(keepends=True))
+                if pong or (command != 'ping' and tail.endswith(expected)):
+                    receipts.append({'type': 'ack', 't_ms': (observed-origin)*1000, 'command': command})
+                    break
+                sleep(min(0.05, deadline - observed))
+            else:
+                raise TimeoutError('ACK unknown; do not replay, inspect current game and slot')
         return receipts
     finally:
         os.close(fd)
