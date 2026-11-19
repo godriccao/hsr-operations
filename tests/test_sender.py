@@ -137,6 +137,33 @@ class SenderContract(unittest.TestCase):
         self.assertEqual(control[:-1], foreground)
         self.assertAlmostEqual(elapsed, 0.10)
 
+    def test_slow_control_check_cannot_extend_deadline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            command = root / 'command.txt'
+            consumed = []
+            now = 0
+
+            def foreground_ok():
+                nonlocal now
+                if consumed:
+                    now += 0.20
+                return True
+
+            def tick(seconds):
+                nonlocal now
+                consumed.append(command.read_text())
+                command.unlink()
+                (root / 'status.log').mkdir()  # A read here would fail with error 5.
+                now += seconds
+
+            with self.assertRaises(TimeoutError):
+                send_batch(root, ['keys|W|80', 'keys|D|80'], control_status=lambda: 'ready',
+                           foreground_ok=foreground_ok, authorized=True, timeout=0.25,
+                           clock=lambda: now, sleep=tick)
+            self.assertEqual(consumed, ['keys|W|80'])
+            self.assertFalse(command.exists())
+
     def test_user_and_unauthorized_never_publish(self):
         with tempfile.TemporaryDirectory() as directory:
             for authorized, state in [(False, 'ready'), (True, 'user'), (True, 'ai')]:

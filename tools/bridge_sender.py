@@ -108,6 +108,8 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
             while clock() < deadline:
                 if control_status() != 'ready' or not foreground_ok():
                     raise PermissionError('control changed; stop and inspect pending / executed input')
+                if clock() >= deadline:
+                    continue
                 try:
                     tail = _read_status_tail(log, offset)
                 except OSError as error:
