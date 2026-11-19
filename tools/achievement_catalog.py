@@ -177,16 +177,16 @@ def difference(previous, current):
 @contextmanager
 def update_lock(directory):
     directory.mkdir(parents=True, exist_ok=True)
-    with (directory / 'update.lock').open('a+b') as lock:
-        # The operating system releases the advisory lock if the process exits.
-        if os.name == 'nt':
-            import msvcrt
-            lock.seek(0)
-            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    marker = directory / 'update-in-progress'
+    try:
+        # A directory claim is shared by Windows and WSL on the same cache volume.
+        marker.mkdir()
+    except FileExistsError as exc:
+        raise ValueError('another update owns this cache; see the update-in-progress recovery instructions') from exc
+    try:
         yield
+    finally:
+        marker.rmdir()
 
 
 def atomic_json(path, data):
@@ -222,15 +222,6 @@ def compare_and_update(directory, snapshot, publish):
     if publish and not same:
         print(f"Catalog change: {len(delta['added'])} added, {len(delta['changed'])} changed, "
               f"{len(delta['removed'])} removed.", file=sys.stderr, flush=True)
-        history = directory / 'versions'
-        history.mkdir(exist_ok=True)
-        snapshot_path = history / f"{snapshot['version']}-{snapshot['source']['sha256']}.json"
-        archived = load_snapshot(snapshot_path)
-        if archived is None:
-            atomic_json(snapshot_path, snapshot)
-        elif (archived['version'] != snapshot['version'] or archived['source']['sha256'] != snapshot['source']['sha256']
-              or archived['items'] != snapshot['items']):
-            raise ValueError('local archive does not match the incoming snapshot')
         atomic_json(active, snapshot)
         mode = 'saved'
     return {'mode': mode, 'from_version': previous['version'] if previous else None,

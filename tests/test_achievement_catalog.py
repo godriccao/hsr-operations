@@ -53,13 +53,12 @@ class AchievementCatalogTest(unittest.TestCase):
         self.assertEqual(previous['items'][1]['show_type'], 'ShowAfterFinish')
 
     def test_new_version_with_same_rows_does_not_report_all_changed(self):
-        previous = self.seed()
+        self.seed()
         code, data, _ = self.invoke('--input', str(FIXTURE), '--version', '4.8')
         self.assertEqual(code, 0)
         self.assertEqual((data['added'], data['removed'], data['changed']), ([], [], []))
-        self.assertEqual(len(list((self.output / 'versions').glob('*.json'))), 2)
-        old_path = self.output / 'versions' / f"4.7-{data['from_sha256']}.json"
-        self.assertEqual(old_path.read_bytes(), previous)
+        self.assertEqual(sorted(p.name for p in self.output.iterdir()), ['current.json'])
+        self.assertEqual(json.loads(self.active.read_bytes())['version'], '4.8')
 
     def test_same_version_reports_add_remove_and_fields(self):
         old = self.seed()
@@ -75,7 +74,7 @@ class AchievementCatalogTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(preview['mode'], 'preview')
         self.assertEqual(self.active.read_bytes(), old)
-        self.assertEqual(len(list((self.output / 'versions').glob('*.json'))), 1)
+        self.assertEqual(sorted(p.name for p in self.output.iterdir()), ['current.json'])
         code, result, _ = self.invoke(*inputs)
         self.assertEqual(code, 0)
         self.assertEqual(result['added'], [1003])
@@ -122,7 +121,7 @@ class AchievementCatalogTest(unittest.TestCase):
             self.assertEqual(self.invoke(*args)[0], 1)
         self.assertEqual(self.active.read_bytes(), previous)
         self.assertEqual(self.invoke(*args)[0], 0)
-        self.assertEqual(len(list((self.output / 'versions').glob('*.json'))), 2)
+        self.assertEqual(sorted(p.name for p in self.output.iterdir()), ['current.json'])
 
     def test_dry_run_first_read_does_not_create_cache(self):
         self.assertEqual(self.invoke('--input', str(FIXTURE), '--version', '4.7', '--dry-run')[0], 0)
@@ -131,6 +130,17 @@ class AchievementCatalogTest(unittest.TestCase):
     def test_second_updater_cannot_fetch_until_lock_released(self):
         old = self.seed()
         with catalog.update_lock(self.output), patch.object(catalog, 'fetch') as fetch:
-            self.assertEqual(self.invoke()[0], 1)
+            result, _, error = self.invoke()
+            self.assertEqual(result, 1)
+            self.assertIn('update-in-progress', error)
             fetch.assert_not_called()
         self.assertEqual(self.active.read_bytes(), old)
+        self.assertFalse((self.output / 'update-in-progress').exists())
+
+    def test_older_source_never_replaces_active_version(self):
+        previous = self.seed()
+        code, _, error = self.invoke('--input', str(FIXTURE), '--version', '4.6')
+        self.assertEqual(code, 1)
+        self.assertIn('older than the active version', error)
+        self.assertEqual(self.active.read_bytes(), previous)
+        self.assertEqual(sorted(p.name for p in self.output.iterdir()), ['current.json'])
