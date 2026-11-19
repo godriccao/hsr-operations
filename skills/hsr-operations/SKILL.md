@@ -1,6 +1,6 @@
 ---
 name: hsr-operations
-description: 在 Windows 上操作《崩坏：星穹铁道》，完成每日实训、历战余响、清图寻宝与探索谜题，校准移动、鼠标和输入桥，并核实进度与奖励。
+description: 在 Windows 上操作《崩坏：星穹铁道》，完成每日实训、历战余响、清图寻宝、探索谜题与成就盘点，校准移动、鼠标和输入桥，并核实进度与奖励。
 ---
 
 # 崩坏：星穹铁道操作
@@ -12,6 +12,7 @@ description: 在 Windows 上操作《崩坏：星穹铁道》，完成每日实�
 按任务读：
 
 - 每日活跃度、批量提取和每周历战余响：[每日与每周](references/daily-weekly.md)。
+- 成就分类、关键词与逐页盘点：[成就盘点](references/achievement-audit.md)。
 - 寻宝、楼层、地标、多帧观察与批量移动：[清图与导航](references/exploration.md)。
 - 迷钟：[操作](references/dream-ticker.md)、[帮派迷钟实测](references/gang-clock.md)。
 - 黄金替罪羊、预言算碑、矩阵、ROTATE、JUMP、贼灵回溯：[探索谜题](references/exploration-puzzles.md)。
