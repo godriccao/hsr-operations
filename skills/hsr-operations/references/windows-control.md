@@ -22,8 +22,10 @@ AHK 新脚本先普通权限 `/Validate /ErrorStdOut=UTF-8`，通过后才按正
 
 需要在锁屏期间观察时，先在解锁状态为 OBS 新建场景集合，添加「窗口采集」，选中 `StarRail.exe`，将采集方法设为 Windows Graphics Capture（WGC）。只采游戏画面，关闭麦克风、桌面音频和应用音频。需要本地程序读取画面时，启动 OBS 虚拟摄像机，以 FFmpeg 的 `-f dshow -i "video=OBS Virtual Camera"` 读取，完成后关闭虚拟摄像机。[OBS 窗口采集](https://obsproject.com/kb/window-capture-sources)
 
-在能运行 Node.js 并从 PATH 启动 FFmpeg 的本地宿主，可从完整仓库导入 `tools/obs_frames.mjs`。调用 `openObsFrames()` 一次保留 reader。每次 `await reader.nextFrame()` 取得新的 960×540 JPEG，用宿主图像接口读 `frame.bytes`。取帧在内存中完成。首图核游戏地标，连续帧用场景或待机动作核更新。超时或画面无法核实时回到 CUA。观察完成调用 `reader.close()`，再停 OBS 虚拟摄像机。该 reader 只取图，派发仍走正常控制检查。
+在能运行 Node.js 并从 PATH 启动 FFmpeg 的本地宿主，可从完整仓库导入 `tools/obs_frames.mjs`。虚拟摄像机已输出游戏画面时，独立取一张图可在同一次调用中用 `openObsFrames()` 建立 reader，用 `await reader.nextFrame()` 取一张 960×540 JPEG，并在 `finally` 中调用 `reader.close()`。用宿主图像接口直接显示内存中的 `frame.bytes`。持续观察时保留同一个 reader，每次等下一帧，结束时关闭 reader，再停 OBS 虚拟摄像机。该 reader 只取图，派发仍走正常控制检查。
 
-用 `WTSQuerySessionInformationW` 的 `WTSSessionInfoEx` 会话标志确认锁屏及解锁。在锁屏期间间隔抽取数帧，比较像素并观察角色待机动作，排除重复的最后一帧。锁屏期间停发游戏键鼠。解锁后重新取图，确认游戏前台及控制归属，再按正常流程派发。[Windows 会话状态](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w)
+先看首帧能否认出游戏地标或界面，再核相邻帧的像素变化与可见动作。虚拟摄像机返回 OBS 占位图时，查看本次 OBS 启动日志，确认启动是否完成、`StarRail.exe` 的窗口采集是否使用 WGC，以及虚拟摄像机所选输出（如 Program 画面）是否包含该采集来源。恢复后重新取帧验收。超时或画面无法核实时，在解锁状态下用原生 CUA 重新取图。
+
+用 `WTSQuerySessionInformationW` 的 `WTSSessionInfoEx` 会话标志确认锁屏及解锁。锁屏期间间隔取几帧，按上述步骤核实画面仍在更新。锁屏期间停发游戏键鼠。解锁后重新取图，确认游戏前台及控制归属，再按正常流程派发。[Windows 会话状态](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w)
 
 2026-11-19，Windows 上用 OBS 33.0.0 在龙骸古城 2F 瓦砾阶验证。约 86.5 秒锁屏期间以每秒 4 帧抽样，347 帧的像素哈希均不同，解锁后继续出图。同机普通权限的 OBS「游戏采集」报 `could not open process: StarRail.exe`，切到 WGC 窗口采集后成功。
