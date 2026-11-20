@@ -21,22 +21,34 @@ pressed := false
 OnExit ReleaseMouse
 ^!F12::ExitApp()
 try {
-    DllCall('SetCursorPos', 'Int', left + x, 'Int', top + y)
+    startX := left + x, startY := top + y
+    if !DllCall('SetCursorPos', 'Int', startX, 'Int', startY, 'Int')
+        ExitApp 8
     Sleep 120
     if !SameFrame()
         ExitApp 7
+    if !CursorAt(startX, startY)
+        ExitApp 8
     DllCall('mouse_event', 'UInt', 2, 'UInt', 0, 'UInt', 0, 'UInt', 0, 'UPtr', 0)
     pressed := true
     if A_Args.Length = 5 {
         Loop 20 {
             if !SameFrame()
                 ExitApp 7
-            DllCall('SetCursorPos', 'Int', left + Round(x + (tx-x)*A_Index/20), 'Int', top + Round(y + (ty-y)*A_Index/20))
+            stepX := left + Round(x + (tx - x) * A_Index / 20)
+            stepY := top + Round(y + (ty - y) * A_Index / 20)
+            if !DllCall('SetCursorPos', 'Int', stepX, 'Int', stepY, 'Int') || !CursorAt(stepX, stepY)
+                ExitApp 8
             Sleep 20
         }
     }
     Sleep 80
 } finally ReleaseMouse()
+CursorAt(x, y) {
+    point := Buffer(8)
+    return DllCall('GetCursorPos', 'Ptr', point, 'Int')
+        && NumGet(point, 0, 'Int') = x && NumGet(point, 4, 'Int') = y
+}
 SameFrame() {
     global h, left, top, width, height, config
     if !WinActive('ahk_id ' h) || A_Now >= config.ExpiresAt
