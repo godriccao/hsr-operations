@@ -62,11 +62,13 @@ def _read_status_tail(log, offset):
 
 
 def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authorized,
-               timeout=2.5, clock=time.monotonic, sleep=time.sleep, dispatch_interval_ms=None):
+               timeout=2.5, clock=time.monotonic, sleep=time.sleep, dispatch_interval_ms=None,
+               receipt_sink=None):
     """Callbacks query the actual host each time; never replace them with cached ready.
 
     Returns relative dispatch/ack times. Any uncertainty raises and stops remaining
     commands. Existing pending files are preserved. No timeout retries.
+    An optional empty list retains this batch's recorded events even on failure.
     An optional (minimum, maximum) interval in integer milliseconds applies between
     successive publications in a batch of Space jumps. After each ACK, any remaining
     minimum wait precedes fresh host and foreground checks for the next publication.
@@ -75,6 +77,8 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
         raise RuntimeError('Windows single-slot rename semantics required')
     if not authorized:
         raise PermissionError('current session has not authorized this input channel')
+    if receipt_sink is not None and (type(receipt_sink) is not list or receipt_sink):
+        raise ValueError('receipt sink must be an empty list')
     commands = list(commands)
     if not 1 <= len(commands) <= 12 or not 0 < timeout <= 10:
         raise ValueError('invalid batch size / timeout')
@@ -96,7 +100,7 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
     lock = root / 'sender.lock'
     # Exclusive lock refuses a second sender; a stale lock requires investigation.
     fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    receipts = []
+    receipts = [] if receipt_sink is None else receipt_sink
     previous_dispatch = None
     origin = clock()
     try:
