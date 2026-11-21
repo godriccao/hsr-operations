@@ -15,7 +15,7 @@ from bridge_sender import send_batch
 class SenderContract(unittest.TestCase):
     def run_jump_batch(self, dispatch_interval_ms=None, *, first_ack_at=0.0,
                        next_check_delay=0.0, next_write_delay=0.0, next_rename_delay=0.0,
-                       revoke=False):
+                       revoke=False, receipt_sink=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             command_file = root / 'command.txt'
@@ -70,7 +70,8 @@ class SenderContract(unittest.TestCase):
                 try:
                     result = send_batch(root, commands, control_status=control_status,
                                         foreground_ok=foreground_ok, authorized=True,
-                                        clock=lambda: now, sleep=sleep, **kwargs)
+                                        clock=lambda: now, sleep=sleep, receipt_sink=receipt_sink,
+                                        **kwargs)
                 except (TimeoutError, PermissionError) as error:
                     result = error
             self.assertFalse((root / 'sender.lock').exists())
@@ -79,7 +80,9 @@ class SenderContract(unittest.TestCase):
             return result, published, control, foreground
 
     def test_dispatch_interval_follows_previous_publication_after_its_ack(self):
-        rows, published, control, foreground = self.run_jump_batch((370, 420))
+        receipts = []
+        rows, published, control, foreground = self.run_jump_batch((370, 420), receipt_sink=receipts)
+        self.assertIs(rows, receipts)
         self.assertEqual([row['type'] for row in rows], ['dispatch', 'ack'] * 3)
         self.assertEqual(published, [(0.0, 'keys|Space|80'), (0.37, 'keys|Space|75'),
                                      (0.74, 'keys|A+Space|90')])
@@ -93,10 +96,16 @@ class SenderContract(unittest.TestCase):
         self.assertEqual([row['t_ms'] for row in rows[::2]], [0.0, 50.0, 100.0])
 
     def test_dispatch_interval_expiring_after_ack_does_not_publish_again(self):
-        error, published, _, _ = self.run_jump_batch((370, 420), first_ack_at=0.43)
+        receipts = []
+        error, published, _, _ = self.run_jump_batch((370, 420), first_ack_at=0.43,
+                                                       receipt_sink=receipts)
         self.assertIsInstance(error, TimeoutError)
         self.assertIn('before checking', str(error))
         self.assertEqual(published, [(0.0, 'keys|Space|80')])
+        self.assertEqual([(row['type'], row['command']) for row in receipts],
+                         [('dispatch', 'keys|Space|80'), ('ack', 'keys|Space|80')])
+        self.assertEqual(receipts[0]['t_ms'], 0.0)
+        self.assertAlmostEqual(receipts[1]['t_ms'], 450.0)
 
     def test_dispatch_interval_expiring_during_preparation_does_not_publish_again(self):
         for delays in ({'next_check_delay': 0.06}, {'next_write_delay': 0.06}):
@@ -306,10 +315,14 @@ class SenderContract(unittest.TestCase):
     def test_new_ack_required_no_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             (Path(directory) / 'status.log').write_bytes(b'ACK keys|W|80\n')
-            with self.assertRaises(TimeoutError):
+            receipts = []
+            with self.assertRaisesRegex(TimeoutError, 'ACK unknown'):
                 send_batch(directory, ['keys|W|80', 'keys|D|80'], control_status=lambda: 'ready',
-                           foreground_ok=lambda: True, authorized=True, timeout=0.01)
+                           foreground_ok=lambda: True, authorized=True, timeout=0.01,
+                           receipt_sink=receipts)
             self.assertEqual((Path(directory) / 'command.txt').read_bytes(), b'keys|W|80')
+            self.assertEqual([(row['type'], row['command']) for row in receipts],
+                             [('dispatch', 'keys|W|80')])
 
     def test_repeated_commands_new_receipts(self):
         with tempfile.TemporaryDirectory() as directory:
