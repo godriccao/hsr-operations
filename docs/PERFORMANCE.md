@@ -75,6 +75,8 @@ python tools/codex_timing.py examples/session.synthetic.jsonl --capture ObsScree
 
 本地原始 Codex 日志可用 `python tools/codex_timing.py <本地日志> --since <带时区时间> --until <带时区时间> --capture CuaScreenshot --bridge-only`。OBS 同口径用 `--capture ObsScreenshot`。每批用同一来源取帧，以便比较。解析器只识别项目已知的独立 CUA 和 OBS 调用形态；其他宿主/新调用写法需适配，零样本不代表零延迟。它不判断画面是否可操作，也不自动分组。始终复核 `observation_frames`、`first_frame_to_first_bridge_dispatch_ms`、`bridge_dispatches`、`bridge_acknowledgements`。原始日志不可上传公开仓库。
 
+`--since` 和 `--until` 筛选已读的配对结果，读取仍从日志最后 16 MiB 开始。较早批次先调大 `--tail-mib` 至覆盖目标窗，再检查首张有效回图。算碑或罗盘方向键和走位可有相同回执。统计走位时按实际探索窗口截取，从退盘后首张可操作帧配对。
+
 人工核实画面可操作后，可重复传入 `--stable-frame <首帧时间>` 或 `--stable-returned-frame <末帧时间>`，以同一次派发最早的已核帧计算等待下界。
 
 需从独立 OBS 取帧调用自动统计时，可在支持 `nodeRepl.emitImage` 的本地 REPL 先导入模块并在单独调用中建立 `reader`（`const reader = openObsFrames()`）和可重复赋值的 `frame`（`let frame`），再用下面的调用。日志按宿主工具完成时间计。
