@@ -99,11 +99,23 @@ def events(path, tail_mib):
             yield start, end, kind, tool, state, receipts
 
 
+def covered_milliseconds(intervals, start, end):
+    covered = 0
+    covered_until = start
+    for begin, finish in sorted(intervals):
+        begin, finish = max(begin, covered_until), min(finish, end)
+        if begin < finish:
+            covered += finish - begin
+            covered_until = finish
+    return covered
+
+
 def samples(entries):
     frame = None
     first_frame_end = None
     frame_count = 0
     reasoning = []
+    compactions = []
     checks = []
     for start, end, kind, tool, state, receipts in sorted(entries, key=lambda event: event[0]):
         if kind == "McpToolCall" and tool in CAPTURE_TOOLS:
@@ -113,10 +125,13 @@ def samples(entries):
             frame_count += 1
             frame = (start, end, tool)
             reasoning = []
+            compactions = []
             checks = []
         elif frame is not None and start >= frame[1]:
             if kind == "Reasoning" and not checks:
                 reasoning.append((start, end))
+            elif kind == "ContextCompaction" and not checks:
+                compactions.append((start, end))
             elif kind == "McpToolCall" and tool == "ControlStatus":
                 checks.append((start, end, state))
             elif kind == "CommandExecution" and checks:
@@ -137,6 +152,8 @@ def samples(entries):
                         model_ms += b - a
                         previous_end = b
                 review_ms = first_check - frame[1]
+                compaction_ms = covered_milliseconds(compactions, frame[1], first_check)
+                attributed_ms = covered_milliseconds(reasoning + compactions, frame[1], first_check)
                 before_reasoning_ms = None
                 after_reasoning_ms = None
                 if first_reasoning_start is not None:
@@ -152,7 +169,8 @@ def samples(entries):
                     "frame_to_first_recorded_reasoning_ms": before_reasoning_ms,
                     "recorded_reasoning_ms": model_ms,
                     "last_recorded_reasoning_to_first_check_ms": after_reasoning_ms,
-                    "unattributed_before_check_ms": review_ms - model_ms,
+                    "context_compaction_ms": compaction_ms or None,
+                    "unattributed_before_check_ms": review_ms - attributed_ms,
                     "first_check_to_command_start_ms": start - first_check,
                     "frame_to_command_start_ms": start - frame[1],
                     "frame_to_first_bridge_dispatch_ms": (first_dispatch - frame[1]

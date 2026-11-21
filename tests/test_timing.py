@@ -52,6 +52,41 @@ class TimingContract(unittest.TestCase):
         self.assertEqual(rows[0]['frame_to_first_bridge_dispatch_ms'], 3000)
         self.assertEqual(rows[0]['bridge_dispatches'], 2)
         self.assertEqual(rows[0]['bridge_acknowledgements'], 2)
+        self.assertIsNone(rows[0]['context_compaction_ms'])
+        self.assertEqual(rows[0]['unattributed_before_check_ms'], 2400)
+
+    def test_compaction_and_reasoning_share_the_precheck_window(self):
+        rows = list(codex_timing.samples([
+            (0, 100, "McpToolCall", "ObsScreenshot", None, None),
+            (120, 200, "ContextCompaction", None, None, None),
+            (120, 200, "ContextCompaction", None, None, None),
+            (170, 240, "ContextCompaction", None, None, None),
+            (270, 360, "ContextCompaction", None, None, None),
+            (160, 280, "Reasoning", None, None, None),
+            (300, 310, "McpToolCall", "ControlStatus", "ready", None),
+            (320, 400, "CommandExecution", None, None, ([330], 1)),
+        ]))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["context_compaction_ms"], 150)
+        self.assertEqual(rows[0]["recorded_reasoning_ms"], 120)
+        self.assertEqual(rows[0]["unattributed_before_check_ms"], 20)
+        self.assertEqual(rows[0]["frame_to_first_bridge_dispatch_ms"], 230)
+
+    def test_compaction_before_new_frame_is_not_reassigned(self):
+        rows = list(codex_timing.samples([
+            (20, 100, "McpToolCall", "ObsScreenshot", None, None),
+            (140, 320, "ContextCompaction", None, None, None),
+            (280, 300, "McpToolCall", "ObsScreenshot", None, None),
+            (310, 370, "ContextCompaction", None, None, None),
+            (400, 410, "McpToolCall", "ControlStatus", "ready", None),
+            (420, 500, "CommandExecution", None, None, ([430], 1)),
+        ]))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["observation_frames"], 2)
+        self.assertEqual(rows[0]["context_compaction_ms"], 60)
+        self.assertEqual(rows[0]["unattributed_before_check_ms"], 40)
+        self.assertEqual(rows[0]["frame_to_first_bridge_dispatch_ms"], 130)
+        self.assertEqual(rows[0]["first_frame_to_first_bridge_dispatch_ms"], 330)
 
     def test_obs_frame_and_prefixed_ack(self):
         rows = [row for row in codex_timing.samples(codex_timing.events(ROOT / 'examples/session.synthetic.jsonl', 16))
