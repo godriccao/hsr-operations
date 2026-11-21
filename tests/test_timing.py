@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -59,6 +60,51 @@ class TimingContract(unittest.TestCase):
         self.assertEqual(rows[0]['screenshot_ms'], 43)
         self.assertEqual(rows[0]['first_frame_to_first_bridge_dispatch_ms'], 857)
         self.assertEqual(rows[0]['bridge_acknowledgements'], 1)
+
+    def run_timing(self, *arguments):
+        return subprocess.run(
+            [sys.executable, str(ROOT / 'tools/codex_timing.py'),
+             str(ROOT / 'examples/session.synthetic.jsonl'),
+             '--capture', 'CuaScreenshot', '--bridge-only', *arguments],
+            capture_output=True, text=True,
+        )
+
+    def test_verified_first_and_returned_frames_share_one_dispatch(self):
+        result = self.run_timing('--stable-frame', '2023-11-14T22:13:20.100Z',
+                                 '--stable-returned-frame', '2023-11-14T22:13:35.100Z')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['verified_actionable_wait'], {
+            'first_frames_epoch_ms': [1700000000100],
+            'returned_frames_epoch_ms': [],
+            'sample_count': 1,
+            'idle_lower_bound_ms': 18000,
+        })
+
+    def test_verified_returned_frame_uses_its_own_delay(self):
+        result = self.run_timing('--stable-returned-frame', '2023-11-14T22:13:35.100Z')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['verified_actionable_wait'], {
+            'first_frames_epoch_ms': [],
+            'returned_frames_epoch_ms': [1700000015100],
+            'sample_count': 1,
+            'idle_lower_bound_ms': 3000,
+        })
+
+    def test_unpaired_or_empty_verified_frame_is_an_error(self):
+        for option, timestamp, message in (
+            ('--stable-frame', '2023-11-14T22:13:35.100Z', 'requested first frame'),
+            ('--stable-returned-frame', '2023-11-14T22:13:20.100Z', 'requested returned frame'),
+            ('--stable-returned-frame', '', 'invalid timestamp value'),
+        ):
+            with self.subTest(option=option, timestamp=timestamp):
+                result = self.run_timing(option, timestamp)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(message, result.stderr)
+
+    def test_verified_wait_is_opt_in(self):
+        result = self.run_timing()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(set(json.loads(result.stdout)), {'sample_count', 'samples', 'medians_ms'})
 
     def test_only_independent_cua_capture_counts(self):
         import tempfile

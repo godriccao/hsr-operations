@@ -183,6 +183,10 @@ def main():
     parser.add_argument("--tail-mib", type=int, default=16)
     parser.add_argument("--capture", choices=CAPTURE_TOOLS)
     parser.add_argument("--bridge-only", action="store_true", help="Keep samples with a logged bridge dispatch.")
+    parser.add_argument("--stable-frame", type=timestamp, action="append", default=[],
+                        help="First frame of a visually verified actionable wait; repeat as needed.")
+    parser.add_argument("--stable-returned-frame", type=timestamp, action="append", default=[],
+                        help="Last returned frame of a visually verified actionable wait; repeat as needed.")
     args = parser.parse_args()
     if args.tail_mib <= 0:
         parser.error("--tail-mib must be positive")
@@ -210,7 +214,46 @@ def main():
         recorded = [row[field] for row in rows if row[field] is not None]
         if recorded:
             medians[field] = median(recorded)
-    print(json.dumps({"sample_count": len(rows), "samples": rows, "medians_ms": medians}, indent=2))
+    report = {"sample_count": len(rows), "samples": rows, "medians_ms": medians}
+    if args.stable_frame or args.stable_returned_frame:
+        first_frames = set(args.stable_frame)
+        returned_frames = set(args.stable_returned_frame)
+        requested = {(frame, False) for frame in first_frames}
+        requested.update((frame, True) for frame in returned_frames)
+        matched = {}
+        dispatch_by_frame = {}
+        for row in rows:
+            returned_delay = row["frame_to_first_bridge_dispatch_ms"]
+            if returned_delay is None:
+                continue
+            dispatch = row["frame_finished_epoch_ms"] + returned_delay
+            for frame, is_returned, delay in (
+                (row["first_frame_finished_epoch_ms"], False, row["first_frame_to_first_bridge_dispatch_ms"]),
+                (row["frame_finished_epoch_ms"], True, returned_delay),
+            ):
+                key = (frame, is_returned)
+                if key not in requested or delay is None:
+                    continue
+                if dispatch_by_frame.setdefault(frame, dispatch) != dispatch:
+                    label = "returned" if is_returned else "first"
+                    parser.error(f"Ambiguous {label} frame: {frame}")
+                matched[key] = (dispatch, delay)
+        for is_returned, label in ((False, "first"), (True, "returned")):
+            missing = sorted(frame for frame, mode in requested - matched.keys() if mode == is_returned)
+            if missing:
+                parser.error(f"No dispatch paired with requested {label} frame(s): {missing}")
+        waiting = {}
+        for (frame, is_returned), (dispatch, delay) in sorted(matched.items()):
+            waiting.setdefault(dispatch, (frame, is_returned, delay))
+        verified = {
+            "first_frames_epoch_ms": sorted(frame for frame, mode, _ in waiting.values() if not mode),
+            "sample_count": len(waiting),
+            "idle_lower_bound_ms": round(sum(delay for _, _, delay in waiting.values()), 3),
+        }
+        if args.stable_returned_frame:
+            verified["returned_frames_epoch_ms"] = sorted(frame for frame, mode, _ in waiting.values() if mode)
+        report["verified_actionable_wait"] = verified
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":
