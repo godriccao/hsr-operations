@@ -62,11 +62,14 @@ def _read_status_tail(log, offset):
 
 
 def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authorized,
-               timeout=2.5, clock=time.monotonic, sleep=time.sleep):
+               timeout=2.5, clock=time.monotonic, sleep=time.sleep, dispatch_interval_ms=None):
     """Callbacks query the actual host each time; never replace them with cached ready.
 
     Returns relative dispatch/ack times. Any uncertainty raises and stops remaining
     commands. Existing pending files are preserved. No timeout retries.
+    An optional (minimum, maximum) interval in integer milliseconds applies between
+    successive publications in a batch of Space jumps. After each ACK, any remaining
+    minimum wait precedes fresh host and foreground checks for the next publication.
     """
     if os.name != 'nt':
         raise RuntimeError('Windows single-slot rename semantics required')
@@ -78,14 +81,36 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
     for command in commands:
         if command not in ('ping', 'stop') and not (KEYS.fullmatch(command) or CLICK.fullmatch(command)):
             raise ValueError('unsupported command')
+    if dispatch_interval_ms is not None:
+        if (not isinstance(dispatch_interval_ms, (tuple, list)) or len(dispatch_interval_ms) != 2
+                or any(type(bound) is not int for bound in dispatch_interval_ms)
+                or not 1 <= dispatch_interval_ms[0] <= dispatch_interval_ms[1] <= 10_000):
+            raise ValueError('dispatch interval must contain ordered integer bounds in 1..10000 ms')
+        if len(commands) < 2 or any(
+            not KEYS.fullmatch(command) or 'space' not in command.casefold().split('|')[1].split('+')
+            for command in commands
+        ):
+            raise ValueError('dispatch interval requires at least two Space jumps')
+        min_interval, max_interval = (bound / 1000 for bound in dispatch_interval_ms)
     root = Path(runtime_dir).resolve(strict=True)
     lock = root / 'sender.lock'
     # Exclusive lock refuses a second sender; a stale lock requires investigation.
     fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     receipts = []
+    previous_dispatch = None
     origin = clock()
     try:
         for command in commands:
+            latest_dispatch = None
+            if dispatch_interval_ms is not None and previous_dispatch is not None:
+                earliest_dispatch = previous_dispatch + min_interval
+                latest_dispatch = previous_dispatch + max_interval
+                now = clock()
+                while now < earliest_dispatch:
+                    sleep(earliest_dispatch - now)
+                    now = clock()
+                if now > latest_dispatch:
+                    raise TimeoutError('dispatch interval expired before checking the next command')
             if control_status() != 'ready' or not foreground_ok():
                 raise PermissionError('host not ready or game not foreground')
             if any((root / name).exists() for name in ('command.txt', 'claimed-command.txt')):
@@ -93,14 +118,20 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
             log = root / 'status.log'
             offset = log.stat().st_size if log.exists() else 0
             temporary = root / ('.pending-' + uuid.uuid4().hex)
+            destination = root / 'command.txt'
             try:
                 temporary.write_bytes(command.encode('utf-8'))
+                if latest_dispatch is not None and clock() > latest_dispatch:
+                    raise TimeoutError('dispatch interval expired while preparing the next command')
                 # os.rename on Windows fails if destination exists; never overwrite.
-                os.rename(temporary, root / 'command.txt')
+                os.rename(temporary, destination)
+                if dispatch_interval_ms is not None:
+                    previous_dispatch = clock()
             finally:
                 if temporary.exists():
                     temporary.unlink()
-            receipts.append({'type': 'dispatch', 't_ms': (clock()-origin)*1000, 'command': command})
+            dispatched = clock() if dispatch_interval_ms is None else previous_dispatch
+            receipts.append({'type': 'dispatch', 't_ms': (dispatched-origin)*1000, 'command': command})
             if command == 'stop':
                 break  # legacy protocol has no stop ACK
             deadline = clock() + timeout
@@ -131,6 +162,9 @@ def send_batch(runtime_dir, commands, *, control_status, foreground_ok, authoriz
                 sleep(min(0.05, deadline - observed))
             else:
                 raise TimeoutError('ACK unknown; do not replay, inspect current game and slot')
+            if latest_dispatch is not None and dispatched > latest_dispatch:
+                # A rename that has already started can cross the deadline inside the OS.
+                raise TimeoutError('command acknowledged, publication exceeded the dispatch interval; inspect game')
         return receipts
     finally:
         os.close(fd)
