@@ -44,6 +44,7 @@ try {
     }
     Sleep 80
 } finally ReleaseMouse()
+ExitApp()
 CursorAt(x, y) {
     point := Buffer(8)
     return DllCall('GetCursorPos', 'Ptr', point, 'Int')
