@@ -23,7 +23,9 @@ def check():
     paths = files()
     for path in paths:
         relative = path.relative_to(ROOT).as_posix()
-        if path.suffix not in SUFFIXES and path.name not in {'LICENSE', '.gitignore', '.gitattributes'}:
+        if (path.suffix not in SUFFIXES
+                and path.name not in {'LICENSE', '.gitignore', '.gitattributes'}
+                and relative != 'tools/start_obs_timeline.ps1'):
             errors.append(f'unsupported public file: {relative}')
         try:
             text = path.read_text(encoding='utf-8-sig')
