@@ -7,7 +7,7 @@ description: 在 Windows 上操作《崩坏：星穹铁道》，完成每日实�
 
 先确认任务范围、唯一操作者与输入归属。用户使用电脑或状态为 user 时停止键鼠；恢复后取新画面，重新校准窗口、朝向与断点。工具和历史成功记录不扩大当前宿主权限。
 
-按当前任务选用已获准的原生 CUA 或只读 OBS 观察，随后按正常 Windows MCP ControlStatus 检查，仅在 ready、游戏前台、用户交还控制且当前宿主允许文件桥时派发。不同取图路径的控制占用和计时分别记录。读 [Windows 控制](references/windows-control.md)。
+按当前任务选用已获准的原生 CUA 或只读 OBS 观察，随后按正常 Windows MCP ControlStatus 检查，仅在 ready、游戏前台、用户交还控制且当前宿主允许文件桥时派发。不同取图路径的控制占用和计时分别记录。控制权检查、客户端初始化失败和恢复登录见 [Windows 控制](references/windows-control.md)。
 
 按任务读：
 
