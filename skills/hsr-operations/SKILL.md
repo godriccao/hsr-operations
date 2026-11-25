@@ -16,7 +16,7 @@ description: 在 Windows 上操作《崩坏：星穹铁道》，完成每日实�
 - 寻宝、楼层、地标、多帧观察与批量移动：[清图与导航](references/exploration.md)。
 - 连续操控提速、跳跃实派节奏与接班：[性能与编排](references/performance.md)。
 - 迷钟：[操作](references/dream-ticker.md)、[帮派迷钟实测](references/gang-clock.md)。
-- 黄金替罪羊、预言算碑、矩阵、ROTATE、JUMP、贼灵回溯：[探索谜题](references/exploration-puzzles.md)。
+- 黄金替罪羊、预言算碑、洞穴寓言、矩阵、ROTATE、JUMP、贼灵回溯：[探索谜题](references/exploration-puzzles.md)。
 
 发布仓库的完整 checkout 根目录记为 REPO_ROOT，由操作者配置。安装后从本机登记的 REPO_ROOT 读 `docs/INSTALL.md`、`docs/BRIDGE.md`、`docs/PERFORMANCE.md`；这些不依赖作者电脑路径。使用工具前核实可用依赖与本机配置。未知 REPO_ROOT 时先定位 checkout；只有技能目录时先补齐发布仓库的 tools 和 docs。
 
