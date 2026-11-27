@@ -15,6 +15,7 @@ description: 在 Windows 上操作《崩坏：星穹铁道》，完成每日实�
 - 成就逐页盘点与解锁规划：[成就盘点与规划](references/achievement-audit.md)。
 - 寻宝、楼层、地标、多帧观察与批量移动：[清图与导航](references/exploration.md)。
 - 连续操控提速、跳跃实派节奏与接班：[性能与编排](references/performance.md)。
+- 跳跃轨迹、移动平台相位和落脚验收：[跳跃轨迹](references/jump-trajectories.md)。
 - 迷钟：[操作](references/dream-ticker.md)、[帮派迷钟实测](references/gang-clock.md)。
 - 黄金替罪羊、预言算碑、洞穴寓言、矩阵、ROTATE、JUMP、贼灵回溯：[探索谜题](references/exploration-puzzles.md)。
 
